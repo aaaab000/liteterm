@@ -430,6 +430,7 @@ static void cursor_clamp(void) {
     if (cur_x >= cols) cur_x = cols - 1;
     if (cur_y < 0) cur_y = 0;
     if (cur_y >= rows) cur_y = rows - 1;
+    dirty = 1;  // <--- ДОБАВИТЬ
 }
 
 static void newline(void) {
@@ -544,24 +545,28 @@ static void csi_dispatch(char c) {
     int p1 = esc_nparam > 1 ? esc_params[1] : 0;
 
     switch (c) {
-    case 'A': /* CUU — cursor up */
-        cur_y -= (p0 ? p0 : 1);
-        cursor_clamp();
-        break;
-    case 'B': /* CUD — cursor down */
-    case 'e':
-        cur_y += (p0 ? p0 : 1);
-        cursor_clamp();
-        break;
-    case 'C': /* CUF — cursor forward */
-    case 'a':
-        cur_x += (p0 ? p0 : 1);
-        cursor_clamp();
-        break;
-    case 'D': /* CUB — cursor back */
-        cur_x -= (p0 ? p0 : 1);
-        cursor_clamp();
-        break;
+    case 'A':
+		cur_y -= (p0 ? p0 : 1);
+		cursor_clamp();
+		dirty = 1;    // <--- ДОБАВИТЬ
+		break;
+	case 'B':
+	case 'e':
+		cur_y += (p0 ? p0 : 1);
+		cursor_clamp();
+		dirty = 1;    // <--- ДОБАВИТЬ
+		break;
+	case 'C':
+	case 'a':
+		cur_x += (p0 ? p0 : 1);
+		cursor_clamp();
+		dirty = 1;    // <--- ДОБАВИТЬ
+		break;
+	case 'D':
+		cur_x -= (p0 ? p0 : 1);
+		cursor_clamp();
+		dirty = 1;    // <--- ДОБАВИТЬ
+		break;
     case 'E': /* CNL */
         cur_x = 0;
         cur_y += (p0 ? p0 : 1);
@@ -980,28 +985,34 @@ static void process_byte(uint8_t b) {
     }
 
     /* Управляющие символы */
-    if (b < 0x20 || b == 0x7F) {
-        switch (b) {
-        case '\r': cur_x = 0; return;
-        case '\n': case '\v': case '\f':
-            newline();
-            return;
-        case '\t': {
-            int next = (cur_x + 8) & ~7;
-            if (next >= cols) next = cols - 1;
-            cur_x = next;
-            return;
-        }
-        case '\b':
-            if (cur_x > 0) cur_x--;
-            return;
-        case '\a': /* bell — игнорируем или можно XBell */
-            return;
-        case 0x0E: case 0x0F: /* SI/SO — charset, ignore */
-            return;
-        }
-        return;
-    }
+	if (b < 0x20 || b == 0x7F) {
+		switch (b) {
+		case '\r': 
+			cur_x = 0; 
+			dirty = 1;
+			return;
+		case '\n': case '\v': case '\f':
+			newline();
+			dirty = 1;
+			return;
+		case '\t': {
+			int next = (cur_x + 8) & ~7;
+			if (next >= cols) next = cols - 1;
+			cur_x = next;
+			dirty = 1;
+			return;
+		}
+		case '\b':
+			if (cur_x > 0) cur_x--;
+			dirty = 1;           // <--- ВОТ ЭТО ИСПРАВЛЕНИЕ
+			return;
+		case '\a': /* bell */
+			return;
+		case 0x0E: case 0x0F: /* SI/SO */
+			return;
+		}
+		return;
+	}
 
     /* UTF-8 декодирование */
     uint32_t ch;
