@@ -1220,6 +1220,15 @@ static void selection_paste(void) {
                       clipboard_atom, win, CurrentTime);
 }
 
+// Добавить функцию очистки выделения (после selection_paste)
+static void selection_clear(void) {
+    if (sel_active) {
+        sel_active = 0;
+        sel_dragging = 0;
+        dirty = 1;
+    }
+}
+
 /* ==================== Ввод клавиатуры ==================== */
 
 // ==================== Ввод клавиатуры ====================
@@ -1229,18 +1238,17 @@ static void handle_key(XKeyEvent *ev) {
     char buf[32];
     int len;
 
-    // Сначала получаем keysym через XLookupString — это самый надёжный способ
     len = XLookupString(ev, buf, sizeof(buf) - 1, &ksym, NULL);
 
-    // Проверяем горячие клавиши Ctrl+Shift
     unsigned int state = ev->state & (ControlMask | ShiftMask | Mod1Mask);
 
     if (state == (ControlMask | ShiftMask)) {
         if (ksym == KEYBIND_COPY) {
             selection_copy();
-            return;
+            return;  // <-- выделение остаётся
         }
         if (ksym == KEYBIND_PASTE) {
+            selection_clear();  // <-- снимаем при вставке
             selection_paste();
             return;
         }
@@ -1278,6 +1286,21 @@ static void handle_key(XKeyEvent *ev) {
             return;
         }
     }
+
+    switch (ksym) {
+    case XK_Shift_L: case XK_Shift_R:
+    case XK_Control_L: case XK_Control_R:
+    case XK_Alt_L: case XK_Alt_R:
+    case XK_Super_L: case XK_Super_R:
+    case XK_Meta_L: case XK_Meta_R:
+    case XK_Caps_Lock: case XK_Num_Lock:
+    case XK_Scroll_Lock:
+        break;
+    default:
+        selection_clear();
+        break;
+    }
+    // ===========================================
 
     // Вычисляем модификатор xterm-стиля
     int mod = 0;
